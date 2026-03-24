@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.olivervarney.budgetdesktop",
-    "productName": "Budget Ledger",
+    "productName": "Budget App",
     "directories": {
       "output": "release"
     },
@@ -28,6 +28,7 @@
       "package.json"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
