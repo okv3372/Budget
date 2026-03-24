@@ -423,7 +423,7 @@ export function DashboardPage({ metrics, transactions, categories, onUpdateCateg
 
   return (
     <div className="page-grid">
-      <section className="dashboard-summary-stack">
+      <section className="dashboard-summary-stack dashboard-order-summary">
         <div className="metric-grid">
           <article className="metric-card">
             <span>Monthly Income</span>
@@ -458,15 +458,10 @@ export function DashboardPage({ metrics, transactions, categories, onUpdateCateg
             <strong className={weeklyNetClass}>{formatMoney(metrics.weeklyNet)}</strong>
             <small>Target {formatMoney(metrics.weeklySavingsTarget)}</small>
           </article>
-          <article className="metric-card">
-            <span>Savings Delta</span>
-            <strong className={metrics.weeklySavingsDelta < 0 ? 'neg' : 'pos'}>{formatMoney(metrics.weeklySavingsDelta)}</strong>
-            <small>{metrics.weeklySavingsDelta >= 0 ? 'Ahead of target' : 'Below target'}</small>
-          </article>
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel dashboard-order-spend">
         <header className="panel-header">
           <h3>Spend Distribution Over Time</h3>
           <span>{spendDateRange.start && spendDateRange.end ? `${spendDateRange.start} to ${spendDateRange.end}` : 'No spending data'}</span>
@@ -513,7 +508,7 @@ export function DashboardPage({ metrics, transactions, categories, onUpdateCateg
         </p>
       </section>
 
-      <section className="panel">
+      <section className="panel dashboard-order-category">
         <header className="panel-header">
           <h3>Category Percentages by Week or Month</h3>
           <span>{periodMode === 'week' ? 'Week view' : periodMode === 'month' ? 'Month view' : 'Compare months'}</span>
@@ -729,7 +724,7 @@ export function DashboardPage({ metrics, transactions, categories, onUpdateCateg
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel dashboard-order-week-transactions">
         <header className="panel-header">
           <h3>This Week&apos;s Transactions</h3>
           <div className="panel-header-actions">
@@ -788,7 +783,7 @@ export function DashboardPage({ metrics, transactions, categories, onUpdateCateg
         ) : null}
       </section>
 
-      <section className="panel">
+      <section className="panel dashboard-order-month-transactions">
         <header className="panel-header">
           <h3>This Month&apos;s Transactions</h3>
           <div className="panel-header-actions">

@@ -539,6 +539,26 @@ button.category-pill:disabled {
   gap: 0.8rem;
 }
 
+.dashboard-order-summary {
+  order: 1;
+}
+
+.dashboard-order-category {
+  order: 2;
+}
+
+.dashboard-order-spend {
+  order: 3;
+}
+
+.dashboard-order-week-transactions {
+  order: 4;
+}
+
+.dashboard-order-month-transactions {
+  order: 5;
+}
+
 .metric-card {
   padding: 0.92rem;
   display: grid;
