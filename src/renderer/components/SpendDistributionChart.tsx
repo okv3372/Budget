@@ -18,8 +18,8 @@ interface SpendDistributionChartProps {
   xLabelMode?: 'day' | 'week' | 'month';
 }
 
-const DEFAULT_MIN_PLOT_WIDTH = 840;
-const DEFAULT_POINT_SPACING = 9;
+const DEFAULT_MIN_PLOT_WIDTH = 1800;
+const DEFAULT_POINT_SPACING = 28;
 
 function formatAxisDate(isoDate: string, mode: 'day' | 'week' | 'month'): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
@@ -57,7 +57,7 @@ export function SpendDistributionChart({
     const paddingRight = 16;
     const paddingBottom = 34;
     const paddingLeft = 44;
-    const plotHeight = 280;
+    const plotHeight = 360;
     const minPlotWidth = DEFAULT_MIN_PLOT_WIDTH;
     const pointSpacing = DEFAULT_POINT_SPACING;
     const plotWidth = Math.max(minPlotWidth, Math.max(0, points.length - 1) * pointSpacing);
@@ -145,6 +145,7 @@ export function SpendDistributionChart({
             <svg
               className="spend-share-svg"
               viewBox={`0 0 ${chart.svgWidth} ${chart.svgHeight}`}
+              preserveAspectRatio="xMinYMin meet"
               role="img"
               aria-label={title}
             >
@@ -194,7 +195,7 @@ export function SpendDistributionChart({
                     d={item.path}
                     fill="none"
                     stroke={item.color}
-                    strokeWidth={2.2}
+                    strokeWidth={2.8}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />

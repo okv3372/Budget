@@ -4,6 +4,7 @@ import type { AppApi } from '../shared/types.js';
 const api: AppApi = {
   importCsvFiles: (files) => ipcRenderer.invoke('importCsvFiles', files),
   getTransactions: (filters) => ipcRenderer.invoke('getTransactions', filters),
+  createManualTransaction: (input) => ipcRenderer.invoke('createManualTransaction', input),
   updateTransaction: (input) => ipcRenderer.invoke('updateTransaction', input),
   updateTransactions: (input) => ipcRenderer.invoke('updateTransactions', input),
   softDeleteTransaction: (input) => ipcRenderer.invoke('softDeleteTransaction', input),

@@ -106,6 +106,18 @@ export interface BulkUndoDeleteTransactionsInput {
   ids: string[];
 }
 
+export type ManualTransactionDirection = 'expense' | 'income';
+
+export interface CreateManualTransactionInput {
+  date: string;
+  source: SourceType;
+  description: string;
+  amount: number;
+  direction: ManualTransactionDirection;
+  category: Category;
+  notes?: string;
+}
+
 export interface ReorderRulesInput {
   orderedIds: string[];
 }
@@ -170,6 +182,7 @@ export interface DashboardMetrics {
 export interface AppApi {
   importCsvFiles: (files: ImportFileInput[]) => Promise<ImportCsvResult>;
   getTransactions: (filters?: TransactionFilters) => Promise<Transaction[]>;
+  createManualTransaction: (input: CreateManualTransactionInput) => Promise<Transaction>;
   updateTransaction: (input: UpdateTransactionInput) => Promise<Transaction | null>;
   updateTransactions: (input: BulkUpdateTransactionsInput) => Promise<{ updatedCount: number }>;
   softDeleteTransaction: (input: { id: string; reason?: string }) => Promise<void>;

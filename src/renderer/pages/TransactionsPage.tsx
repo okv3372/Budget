@@ -1,11 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
-import { type Category, type SourceType, type Transaction, type TransactionFilters } from '../../shared/types';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  type Category,
+  type CreateManualTransactionInput,
+  type ImportCsvResult,
+  type ManualTransactionDirection,
+  type SourceType,
+  type Transaction,
+  type TransactionFilters
+} from '../../shared/types';
 import { formatDate, formatMoney } from '../format';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
   categories: Category[];
+  busy: boolean;
+  onImportFiles: (files: File[]) => Promise<ImportCsvResult | null>;
+  onRunRules: (scope: 'uncategorized' | 'all') => Promise<number>;
   onLoad: (filters: TransactionFilters) => Promise<void>;
+  onCreateManualTransaction: (input: CreateManualTransactionInput) => Promise<void>;
   onUpdateCategory: (id: string, category: Category) => Promise<void>;
   onBulkUpdateCategory: (ids: string[], category: Category) => Promise<void>;
   onUpdateDescription: (id: string, description: string) => Promise<void>;
@@ -27,6 +39,16 @@ interface WeeklyTransactionGroup {
   net: number;
 }
 
+interface ManualTransactionDraft {
+  date: string;
+  source: SourceType;
+  description: string;
+  amount: string;
+  direction: ManualTransactionDirection;
+  category: Category;
+  notes: string;
+}
+
 type TransactionSortOption =
   | 'date_desc'
   | 'date_asc'
@@ -37,6 +59,14 @@ type TransactionSortOption =
 
 const VISIBLE_ROW_LIMIT_OPTIONS = [100, 250, 500, 1000, 2000] as const;
 const DEFAULT_VISIBLE_ROW_LIMIT = 500;
+
+function todayIsoLocal(): string {
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function startOfWeekMonday(dateIso: string): string {
   const date = new Date(`${dateIso}T00:00:00Z`);
@@ -109,7 +139,11 @@ function compareTransactions(a: Transaction, b: Transaction, sortBy: Transaction
 export function TransactionsPage({
   transactions,
   categories,
+  busy,
+  onImportFiles,
+  onRunRules,
   onLoad,
+  onCreateManualTransaction,
   onUpdateCategory,
   onBulkUpdateCategory,
   onUpdateDescription,
@@ -121,6 +155,8 @@ export function TransactionsPage({
   onBulkUndoDelete,
   onExportTransactions
 }: TransactionsPageProps) {
+  const [dragOver, setDragOver] = useState(false);
+  const [importSummary, setImportSummary] = useState<ImportCsvResult | null>(null);
   const [filters, setFilters] = useState<TransactionFilters>({
     source: 'all',
     category: 'all',
@@ -132,6 +168,16 @@ export function TransactionsPage({
   const [exportPath, setExportPath] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkCategory, setBulkCategory] = useState<Category>('Uncategorized');
+  const [manualEntry, setManualEntry] = useState<ManualTransactionDraft>({
+    date: todayIsoLocal(),
+    source: 'citizens',
+    description: '',
+    amount: '',
+    direction: 'expense',
+    category: 'Uncategorized',
+    notes: ''
+  });
+  const [manualError, setManualError] = useState('');
   const [sortBy, setSortBy] = useState<TransactionSortOption>('date_desc');
   const [visibleRowLimit, setVisibleRowLimit] = useState(DEFAULT_VISIBLE_ROW_LIMIT);
   const sortedTransactions = useMemo(
@@ -176,11 +222,16 @@ export function TransactionsPage({
       return;
     }
 
-    const exists = categories.some((category) => category.toLowerCase() === bulkCategory.toLowerCase());
-    if (!exists) {
+    const bulkExists = categories.some((category) => category.toLowerCase() === bulkCategory.toLowerCase());
+    if (!bulkExists) {
       setBulkCategory(categories[0]);
     }
-  }, [categories, bulkCategory]);
+
+    const manualCategoryExists = categories.some((category) => category.toLowerCase() === manualEntry.category.toLowerCase());
+    if (!manualCategoryExists) {
+      setManualEntry((current) => ({ ...current, category: categories[0] }));
+    }
+  }, [categories, bulkCategory, manualEntry.category]);
 
   const totals = useMemo(() => {
     const income = transactions.filter((tx) => tx.amount > 0 && !tx.deleted).reduce((sum, tx) => sum + tx.amount, 0);
@@ -240,6 +291,17 @@ export function TransactionsPage({
 
   async function applyFilters(): Promise<void> {
     await onLoad(filters);
+  }
+
+  async function handleImport(fileList: FileList | null): Promise<void> {
+    if (!fileList || fileList.length === 0) {
+      return;
+    }
+
+    const result = await onImportFiles(Array.from(fileList));
+    if (result) {
+      setImportSummary(result);
+    }
   }
 
   function toggleSelection(id: string, selected: boolean): void {
@@ -308,6 +370,50 @@ export function TransactionsPage({
     }
 
     await onBulkUndoDelete(selectedDeletedIds);
+  }
+
+  async function submitManualTransaction(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setManualError('');
+
+    const description = manualEntry.description.trim();
+    if (!description) {
+      setManualError('Description is required.');
+      return;
+    }
+
+    if (!manualEntry.date) {
+      setManualError('Date is required.');
+      return;
+    }
+
+    const parsedAmount = Number(manualEntry.amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setManualError('Amount must be greater than 0.');
+      return;
+    }
+
+    try {
+      await onCreateManualTransaction({
+        date: manualEntry.date,
+        source: manualEntry.source,
+        description,
+        amount: parsedAmount,
+        direction: manualEntry.direction,
+        category: manualEntry.category,
+        notes: manualEntry.notes.trim() || undefined
+      });
+
+      setManualEntry((current) => ({
+        ...current,
+        date: todayIsoLocal(),
+        description: '',
+        amount: '',
+        notes: ''
+      }));
+    } catch (error) {
+      setManualError((error as Error).message);
+    }
   }
 
   const allVisibleSelected = visibleTransactions.length > 0 && selectedTransactions.length === visibleTransactions.length;
@@ -383,6 +489,55 @@ export function TransactionsPage({
 
   return (
     <div className="page-grid">
+      <section className="hero-panel">
+        <div>
+          <h2>Import + Rules</h2>
+          <p>Drop Citizens and Discover CSV files here, then re-run rules when you want to recategorize.</p>
+        </div>
+        <div className="hero-actions">
+          <label className="button">
+            Import CSV Files
+            <input type="file" accept=".csv,text/csv" multiple onChange={(event) => void handleImport(event.target.files)} hidden />
+          </label>
+          <button className="ghost" onClick={() => void onRunRules('uncategorized')} disabled={busy}>
+            Re-run Rules (Uncategorized)
+          </button>
+          <button className="ghost" onClick={() => void onRunRules('all')} disabled={busy}>
+            Re-run Rules (All)
+          </button>
+        </div>
+      </section>
+
+      <section
+        className={`drop-zone ${dragOver ? 'active' : ''}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragOver(false);
+          void handleImport(event.dataTransfer.files);
+        }}
+      >
+        <strong>Drag and drop CSV files</strong>
+        <span>Supports mixed Citizens + Discover imports.</span>
+      </section>
+
+      {importSummary ? (
+        <section className="summary-banner">
+          <strong>Import Result</strong>
+          <span>
+            Imported {importSummary.importedCount} rows, skipped {importSummary.skippedCount} duplicate rows.
+          </span>
+          <span>
+            Citizens parsed: {importSummary.sourceBreakdown.citizens} · Discover parsed: {importSummary.sourceBreakdown.discover}
+          </span>
+          {importSummary.warnings.length > 0 ? <em>{importSummary.warnings.length} warnings. Check source row formats.</em> : null}
+        </section>
+      ) : null}
+
       <section className="panel">
         <header className="panel-header">
           <h3>Transaction Filters</h3>
@@ -517,6 +672,105 @@ export function TransactionsPage({
             </button>
           </div>
         </div>
+
+        <section className="manual-entry-panel">
+          <header className="panel-header">
+            <h3>Manual Transaction</h3>
+            <span>Add a row without importing CSV</span>
+          </header>
+
+          <form className="form-grid compact" onSubmit={(event) => void submitManualTransaction(event)}>
+            <label>
+              Date
+              <input
+                type="date"
+                value={manualEntry.date}
+                onChange={(event) => setManualEntry((current) => ({ ...current, date: event.target.value }))}
+              />
+            </label>
+
+            <label>
+              Source
+              <select
+                value={manualEntry.source}
+                onChange={(event) => setManualEntry((current) => ({ ...current, source: event.target.value as SourceType }))}
+              >
+                <option value="citizens">Citizens</option>
+                <option value="discover">Discover</option>
+              </select>
+            </label>
+
+            <label>
+              Type
+              <select
+                value={manualEntry.direction}
+                onChange={(event) =>
+                  setManualEntry((current) => ({
+                    ...current,
+                    direction: event.target.value as ManualTransactionDirection
+                  }))
+                }
+              >
+                <option value="expense">Expense (spending)</option>
+                <option value="income">Income or refund</option>
+              </select>
+            </label>
+
+            <label>
+              Amount
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={manualEntry.amount}
+                onChange={(event) => setManualEntry((current) => ({ ...current, amount: event.target.value }))}
+                placeholder="0.00"
+              />
+            </label>
+
+            <label>
+              Category
+              <select
+                value={manualEntry.category}
+                onChange={(event) => setManualEntry((current) => ({ ...current, category: event.target.value as Category }))}
+              >
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Description
+              <input
+                type="text"
+                value={manualEntry.description}
+                onChange={(event) => setManualEntry((current) => ({ ...current, description: event.target.value }))}
+                placeholder="Merchant or memo"
+              />
+            </label>
+
+            <label>
+              Notes
+              <input
+                type="text"
+                value={manualEntry.notes}
+                onChange={(event) => setManualEntry((current) => ({ ...current, notes: event.target.value }))}
+                placeholder="Optional"
+              />
+            </label>
+
+            <div className="button-group manual-entry-actions">
+              <button className="button" type="submit">
+                Add Transaction
+              </button>
+            </div>
+          </form>
+
+          {manualError ? <p className="hint neg">{manualError}</p> : <p className="hint">Expenses save as negative, income/refunds as positive.</p>}
+        </section>
 
         <div className="totals-strip">
           <div>

@@ -15,7 +15,6 @@ function createWindow(): BrowserWindow {
     minWidth: 1100,
     minHeight: 740,
     backgroundColor: '#f4f0e6',
-    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -39,6 +38,7 @@ function createWindow(): BrowserWindow {
 function registerIpcHandlers(): void {
   ipcMain.handle('importCsvFiles', async (_event, files) => service.importCsvFiles(files));
   ipcMain.handle('getTransactions', async (_event, filters) => service.getTransactions(filters));
+  ipcMain.handle('createManualTransaction', async (_event, input) => service.createManualTransaction(input));
   ipcMain.handle('updateTransaction', async (_event, input) => service.updateTransaction(input));
   ipcMain.handle('updateTransactions', async (_event, input) => service.updateTransactions(input));
   ipcMain.handle('softDeleteTransaction', async (_event, input) => service.softDeleteTransaction(input));

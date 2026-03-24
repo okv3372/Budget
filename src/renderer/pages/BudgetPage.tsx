@@ -190,9 +190,6 @@ export function BudgetPage({
             <button className="ghost" onClick={() => setSelectedWeekStart(thisWeekStart)}>
               This Week
             </button>
-            <button className="ghost" onClick={() => setSelectedWeekStart(addDays(thisWeekStart, -7))}>
-              Last Week
-            </button>
             <button className="ghost" onClick={() => setSelectedWeekStart((current) => addDays(current, -7))}>
               Back
             </button>

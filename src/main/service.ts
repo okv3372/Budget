@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {
+  type CreateManualTransactionInput,
   type BulkSoftDeleteTransactionsInput,
   type BulkUndoDeleteTransactionsInput,
   type BulkUpdateTransactionsInput,
@@ -21,7 +22,7 @@ import { importCsvFiles } from './importer.js';
 import { getDashboardMetrics } from './metrics.js';
 import { applyRulesToTransaction } from './rules.js';
 import { BudgetStore } from './store.js';
-import { normalizeMerchant, nowIso } from './utils.js';
+import { hashString, normalizeMerchant, nowIso, parseDateToIso } from './utils.js';
 
 function normalizeIds(ids: string[]): Set<string> {
   return new Set(ids.map((id) => id.trim()).filter((id) => id.length > 0));
@@ -97,6 +98,46 @@ export class BudgetService {
     const transactions = await this.store.getTransactions();
     const filtered = applyTransactionFilters(transactions, filters);
     return sortTransactions(filtered);
+  }
+
+  async createManualTransaction(input: CreateManualTransactionInput): Promise<Transaction> {
+    const description = input.description.trim();
+    if (!description) {
+      throw new Error('Description is required');
+    }
+
+    const date = parseDateToIso(input.date);
+    const absoluteAmount = Math.abs(input.amount);
+    if (!Number.isFinite(absoluteAmount) || absoluteAmount <= 0) {
+      throw new Error('Amount must be greater than 0');
+    }
+
+    const normalizedAmount = input.direction === 'expense' ? -absoluteAmount : absoluteAmount;
+    const id = crypto.randomUUID();
+    const now = nowIso();
+
+    const manualTransaction: Transaction = {
+      id,
+      source: input.source,
+      source_file: 'manual-entry',
+      source_row_hash: hashString(`manual-entry|${id}|${date}|${description}|${normalizedAmount.toFixed(2)}`),
+      date,
+      description,
+      amount: normalizedAmount,
+      category: input.category,
+      discover_original_category: input.source === 'discover' ? 'Manual Entry' : '',
+      excluded: false,
+      deleted: false,
+      delete_reason: '',
+      notes: (input.notes ?? '').trim(),
+      created_at: now,
+      updated_at: now
+    };
+
+    const transactions = await this.store.getTransactions();
+    await this.store.saveTransactions([...transactions, manualTransaction]);
+
+    return manualTransaction;
   }
 
   async updateTransaction(input: UpdateTransactionInput): Promise<Transaction | null> {

@@ -3,17 +3,14 @@ import './styles.css';
 import {
   ALL_CATEGORIES,
   type Category,
+  type CreateManualTransactionInput,
   type DashboardMetrics,
   type ImportCsvResult,
   type Rule,
-  type Settings,
   type Transaction,
-  type TransactionFilters,
-  type WeeklyBudgetTarget
+  type TransactionFilters
 } from '../shared/types';
-import { BudgetPage } from './pages/BudgetPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { ImportClassifyPage } from './pages/ImportClassifyPage';
 import { RulesPage } from './pages/RulesPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 
@@ -24,12 +21,10 @@ const defaultHistoryFilters: TransactionFilters = {
   category: 'all'
 };
 
-type View = 'dashboard' | 'budget' | 'import' | 'rules' | 'transactions';
+type View = 'dashboard' | 'rules' | 'transactions';
 
 const viewLabels: Record<View, string> = {
   dashboard: 'Dashboard',
-  budget: 'Budget',
-  import: 'Import + Classify',
   rules: 'Rules',
   transactions: 'Transactions'
 };
@@ -43,13 +38,10 @@ export default function App() {
   const [historyTransactions, setHistoryTransactions] = useState<Transaction[]>([]);
   const [historyFilters, setHistoryFilters] = useState<TransactionFilters>(defaultHistoryFilters);
   const [rules, setRules] = useState<Rule[]>([]);
-  const [budgets, setBudgets] = useState<WeeklyBudgetTarget[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const categories = useMemo(() => [...ALL_CATEGORIES], []);
 
   const activeCount = useMemo(() => allTransactions.filter((tx) => !tx.deleted).length, [allTransactions]);
-  const statusText = message || 'Import CSV files to begin classification and dashboard tracking.';
 
   useEffect(() => {
     if (!message) {
@@ -66,19 +58,15 @@ export default function App() {
   }, [message]);
 
   async function refreshAll(): Promise<void> {
-    const [transactions, rulesData, budgetsData, settingsData, metricsData, historyData] = await Promise.all([
+    const [transactions, rulesData, metricsData, historyData] = await Promise.all([
       window.budgetApi.getTransactions({ includeDeleted: true, includeExcluded: true, source: 'all', category: 'all' }),
       window.budgetApi.getRules(),
-      window.budgetApi.getBudgets(),
-      window.budgetApi.getSettings(),
       window.budgetApi.getDashboardMetrics(),
       window.budgetApi.getTransactions(historyFilters)
     ]);
 
     setAllTransactions(transactions);
     setRules(rulesData);
-    setBudgets(budgetsData);
-    setSettings(settingsData);
     setMetrics(metricsData);
     setHistoryTransactions(historyData);
   }
@@ -131,6 +119,20 @@ export default function App() {
     await runAction('Transaction category updated', async () => {
       await window.budgetApi.updateTransaction({ id, category });
     });
+  }
+
+  async function createManualTransaction(input: CreateManualTransactionInput): Promise<void> {
+    setBusy(true);
+    try {
+      await window.budgetApi.createManualTransaction(input);
+      await refreshAll();
+      setMessage('Manual transaction added');
+    } catch (error) {
+      setMessage(`Manual transaction add failed: ${(error as Error).message}`);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function updateCategoryBulk(ids: string[], category: Category): Promise<void> {
@@ -236,17 +238,6 @@ export default function App() {
     }
   }
 
-  async function exportDashboard(): Promise<string | null> {
-    try {
-      const file = await window.budgetApi.exportDashboardSummaryCsv();
-      setMessage(`Dashboard export written: ${file}`);
-      return file;
-    } catch (error) {
-      setMessage(`Dashboard export failed: ${(error as Error).message}`);
-      return null;
-    }
-  }
-
   return (
     <div className="app-shell">
       <div className="ambient-layer" />
@@ -279,42 +270,7 @@ export default function App() {
 
       <main>
         {activeView === 'dashboard' ? (
-          <DashboardPage metrics={metrics} transactions={allTransactions} categories={categories} />
-        ) : null}
-
-        {activeView === 'budget' ? (
-          <BudgetPage
-            transactions={allTransactions}
-            categories={categories}
-            budgets={budgets}
-            settings={settings}
-            onSetBudget={(category, weeklyLimit) =>
-              runAction(`Budget saved (${category})`, async () => {
-                await window.budgetApi.setBudget(category, weeklyLimit);
-              })
-            }
-            onUpdateSettings={(partial) =>
-              runAction('Settings updated', async () => {
-                await window.budgetApi.updateSettings(partial);
-              })
-            }
-            onUpdateCategory={updateCategory}
-            onExportDashboard={exportDashboard}
-          />
-        ) : null}
-
-        {activeView === 'import' ? (
-          <ImportClassifyPage
-            transactions={allTransactions}
-            categories={categories}
-            busy={busy}
-            onImportFiles={handleImportFiles}
-            onUpdateCategory={updateCategory}
-            onUpdateDescription={updateDescription}
-            onSetExcluded={setExcluded}
-            onSoftDelete={softDelete}
-            onRunRules={runRules}
-          />
+          <DashboardPage metrics={metrics} transactions={allTransactions} categories={categories} onUpdateCategory={updateCategory} />
         ) : null}
 
         {activeView === 'rules' ? (
@@ -349,6 +305,10 @@ export default function App() {
             transactions={historyTransactions}
             categories={categories}
             onLoad={loadHistory}
+            busy={busy}
+            onImportFiles={handleImportFiles}
+            onRunRules={runRules}
+            onCreateManualTransaction={createManualTransaction}
             onUpdateCategory={updateCategory}
             onUpdateDescription={updateDescription}
             onSetExcluded={setExcluded}
@@ -363,14 +323,14 @@ export default function App() {
         ) : null}
       </main>
 
-      <footer className="status-bar" role="status" aria-live="polite">
-        <span>{statusText}</span>
-        {message ? (
+      {message ? (
+        <footer className="status-bar" role="status" aria-live="polite">
+          <span>{message}</span>
           <button className="status-dismiss" type="button" onClick={() => setMessage('')} aria-label="Dismiss status message">
             x
           </button>
-        ) : null}
-      </footer>
+        </footer>
+      ) : null}
     </div>
   );
 }
